@@ -13,4 +13,5 @@
 
 # For development server only
 from app import app
-app.run(debug=True)
+
+app.run(debug=True, port=5000)
