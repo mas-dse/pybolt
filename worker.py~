@@ -1,0 +1,33 @@
+from app import db, models
+import time
+import requests
+
+while True:
+	pending_jobs=models.Job.query.filter(models.Job.status=="Pending").all()
+	running_jobs=models.Job.query.filter(models.Job.status=="running").all()
+	app_ids=''
+	for job in pending_jobs:
+		if job.appId :
+			app_ids += job.appId +','
+	for job in running_jobs:
+		if job.appId:
+			app_ids += job.appId +','
+
+	if app_ids != '':
+		app_ids = app_ids[:-1]
+		res = requests.post('http://ec2-52-207-227-246.compute-1.amazonaws.com:5000/apps', data={'app_ids':app_ids})
+		if res.status_code == requests.codes.ok:
+			job_array=res.json()
+			for job in job_array:
+				appId=job['appId']
+				j=models.Job.query.filter(models.Job.appId==appId).first()
+				if job['status']=='running':
+					j.status='running'
+				elif job['status']=='completed':
+					print "Updating status of:", appId
+					j.status='Completed'
+					j.error=job['stderr']
+					j.stdout=job['stdout']
+			db.session.commit()
+	time.sleep(10)
+

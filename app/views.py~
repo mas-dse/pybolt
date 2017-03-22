@@ -1,0 +1,88 @@
+from flask import render_template, flash, redirect, session, url_for, request, g
+from flask.ext.login import login_user, logout_user, current_user, \
+    login_required
+from app import app, db, lm
+from .forms import LoginForm, SignUpForm
+from .models import User
+
+@lm.user_loader
+def load_user(id):
+    return User.query.get(str(id))
+
+@app.before_request
+def before_request():
+    # print "current_user", current_user
+    g.user = current_user
+
+@app.route('/')
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if g.user is not None and g.user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        session['remember_me'] = form.remember_me.data
+        user = User.query.get(form.pid.data)
+        if user:
+            if user.password == form.password.data:
+                login_user(user)
+                return redirect(url_for('dashboard'))
+            else:
+                flash("Incorrect password! Please retry.")
+        else:
+            flash("Incorrect PID! Please retry.")
+    form2 = SignUpForm()
+    return render_template('login.html',
+                           form=form,
+                           form2=form2,
+                           id=False)
+
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if g.user is not None and g.user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    form2 = SignUpForm()
+    if form2.validate_on_submit():
+        pid = form2.pid.data
+        email = form2.email.data
+        password = form2.password.data
+
+        if not check_pid_email(pid, email):
+            flash("Your Email and PID dont match. Please retry.")
+            return redirect(url_for('login'))
+
+        user = User.query.get(pid)
+        if user:
+            flash("You are already registered. Forgot your password? Please contact Saurabh | sag043@ucsd.edu")
+            return redirect(url_for('login'))
+
+        ## Now put the user into DB and sign in.
+        user = User(id=pid, email=email, password=password)
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+        return redirect(url_for('dashboard'))
+        # return "Cool. You have registered succesfully!"
+
+    form = LoginForm()
+    return render_template('login.html',
+                           form=form,
+                           form2=form2,
+                           id=True)
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+        return render_template('dashboard.html')
+
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    flash("You have been logged out! See you soon :)")
+    return redirect(url_for('login'))
+
+
+def check_pid_email(pid, email):
+    return True
